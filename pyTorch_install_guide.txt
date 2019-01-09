@@ -1,0 +1,122 @@
+########################################################################
+### The document records infomation
+### 1. installation of intel-pytorch and oob-pytorch
+### 2. performance comparison on crnn
+### 3. helper benchmark script for engineers
+########################################################################
+###### Simple pip install and performance test######################
+##########################################################################
+1. PIP install by wheel
+   virtualenv -p python2 python27
+   source python27/bin/activate
+   pip install https://download.pytorch.org/whl/cpu/torch-1.0.0-cp27-cp27mu-linux_x86_64.whl
+   pip install torchvision
+   pip install lmdb
+2. Check if it is MKL or MKL_DNN optimized by 
+   $export MKLDNN_VERBOSE=1
+   $git clone https://github.com/mingfeima/crnn.pytorch.git
+   $cd crnn.pytorch
+   (pytorch27) [yhu5@hsw-ep01 crnn.pytorch]$ ./run_demo.sh
+	
+   if see below log, then it is MKL_DNN optimized. 	
+	loading pretrained model from ./data/crnn.pth
+	mkldnn_verbose,exec,convolution,gemm:avx2,forward_training,fsrc:nchw fwei:oihw fbia:x 	fdst:nchw,alg:convolution_direct,mb1_g1ic1oc64_ih32oh32kh3sh1dh0ph1_iw100ow100kw3sw1dw0pw1,8.33789
+	mkldnn_verbose,exec,reorder,jit:uni,undef,in:f32_nchw out:f32_nChw8c,num:1,1x64x16x50,2.56299
+	mkldnn_verbose,exec,reorder,jit:uni,undef,in:f32_oihw out:f32_OIhw8i8o,num:1,128x64x3x3,5.07202
+	mkldnn_verbose,exec,convolution,jit:avx2,forward_training,fsrc:nChw8c fwei:OIhw8i8o fbia:x 	fdst:nChw8c,alg:convolution_direct,mb1_g1ic64oc1
+
+3. Check better performance by setting environment variable, please change in ./run_demo.sh 
+    ### using OMP_NUM_THREADS=8  etc. 
+    ### using KMP_AFFINITY=granularity=fine,compact,1,0
+    ### using KMP_BLOCKTIME=30
+    $./run_demo.sh
+
+############################################################################################
+The performance is not latest version, as old MKL and MKLDNN v.14.
+The below are steps to build source from intel optimized pytorch for better performance  
+
+#######################################################################################
+0. Install conda
+    Though PyTorch can be installed via multiple channels, conda is recommended. 
+    (The compilation of PyTorch relies on conda include/lib path)
+    
+    follow the following link to get conda
+    https://www.anaconda.com/download/#linux
+    
+1. Install OOBox PyTorch
+    # the following cmds will create a conda virtual env called "oob-pytorch"
+    # and then install out of box pytorch release in it (stable version 1.0)
+    conda create -n oob-pytorch
+    conda activate oob-pytorch
+    conda install pytorch torchvision -c pytorch
+
+2. Benchmarking on OOBox PyTorch
+    pip install lmdb
+    # a fork of meijieru/crnn.pytorch with helper script
+    git clone https://github.com/mingfeima/crnn.pytorch.git
+    cd crnn.pytorch
+    ./run_demo.sh
+    
+    # the log looks like
+    (oob-pytorch) [mingfeim@mlt-skx127 crnn.pytorch]$ ./run_demo.sh
+    ### using OMP_NUM_THREADS=40
+    ### using KMP_AFFINITY=granularity=fine,compact,1,0
+    ### using KMP_BLOCKTIME=1
+
+    loading pretrained model from ./data/crnn.pth
+    ### iter 0 time: 156.16 ms
+    ### iter 1 time: 30.06 ms
+    ### iter 2 time: 28.26 ms
+    ### iter 3 time: 28.04 ms
+    ### iter 4 time: 27.42 ms
+    ### iter 5 time: 28.11 ms
+    ### iter 6 time: 27.82 ms
+    ### iter 7 time: 27.47 ms
+    ### iter 8 time: 27.59 ms
+    ### iter 9 time: 27.28 ms
+    a-----v--a-i-l-a-bb-l-e--- => available
+
+3. Install intel-pytorch
+    # since i'm not allowed to provide release in conda channel,
+    # you need to build from source to install intel-pytorch
+    
+    # create another conda env called "intel-pytorch"
+    # ATTENTION: if you are using an existing conda env, make sure "mkldnn" is not installed in conda,
+    #   otherwise it's going to trigger compilation error. IGNORE this if you create a brand new env.
+    conda create -n intel-pytorch
+    conda activate intel-pytorch
+    
+    # follow https://github.com/intel/pytorch#install-optional-dependencies to build from source
+    export CMAKE_PREFIX_PATH=/home/mingfeim/anaconda3/envs/intel-pytorch/
+    conda install numpy pyyaml mkl mkl-include setuptools cmake cffi typing
+    git clone --recursive https://github.com/intel/pytorch
+    cd pytorch
+    python setup.py install
+    
+4. Benchmarking on intel-pytorch
+    # install lmdb in conda env intel-pytorch
+    pip install lmdb
+    # install torchvision in conda env intel-pytorch
+    # can't install via conda since conda will install pytorch release as pre-request of torchvision
+    pip install torchvision
+    cd crnn.pytorch
+    ./run_demo.sh
+    
+    # the log looks like
+    (intel-pytorch) [mingfeim@mlt-skx127 crnn.pytorch]$ ./run_demo.sh
+    ### using OMP_NUM_THREADS=40
+    ### using KMP_AFFINITY=granularity=fine,compact,1,0
+    ### using KMP_BLOCKTIME=1
+
+    loading pretrained model from ./data/crnn.pth
+    ### iter 0 time: 33.10 ms
+    ### iter 1 time: 25.67 ms
+    ### iter 2 time: 26.43 ms
+    ### iter 3 time: 25.23 ms
+    ### iter 4 time: 23.90 ms
+    ### iter 5 time: 23.97 ms
+    ### iter 6 time: 23.85 ms
+    ### iter 7 time: 23.96 ms
+    ### iter 8 time: 23.27 ms
+    ### iter 9 time: 24.60 ms
+    a-----v--a-i-l-a-bb-l-e--- => available
