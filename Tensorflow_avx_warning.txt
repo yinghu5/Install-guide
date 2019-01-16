@@ -1,0 +1,10 @@
+
+
+Q: Install Intel-Optimized Tensorflow with MKL-DNN show warning message AVX2, FMA, etc, are not supported. 
+
+
+A: Please see :  https://software.intel.com/en-us/forums/intel-math-kernel-library/topic/802119
+it is expected message,  because we actually build  the intel-optimized Tensorflow with general Instruction AVX by design.  Thus the message mentioned advanced instruction AVX2 and FMA  are not supported.  But as Intel-Optimized Tensorflow are based on MKL-DNN, which can automatically detect CPU instruction and distribute CPU-specific code to the machines with AVX2, AVX512 etc. So the kernel code speeded by Intel MKL-DNN is actually not limited by the TF build Option.  
+We will consider to remove such message somewhere.  And the TF Guide is here : https://software.intel.com/en-us/articles/intel-optimization-for-tensorf... 
+Note: All binaries distributed by Intel were built against the TensorFlow v1.12.0 tag in a centOS container with gcc 4.8.5 and glibc 2.17 with the following compiler flags (shown below as passed to bazel*)
+--cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0 --copt=-march=corei7-avx --copt=-mtune=core-avx-i --copt=-O3
